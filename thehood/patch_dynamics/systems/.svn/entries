@@ -1,0 +1,98 @@
+9
+
+dir
+954
+svn+repocs://repos.cs.kuleuven.be/repos/giocode/patches/trunk/systems
+svn+repocs://repos.cs.kuleuven.be/repos/giocode
+
+
+
+2009-03-24T19:55:30.174783Z
+953
+giovanni
+has-props
+
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+876b19ca-1e01-0410-8f6f-8c59694264b6
+
+__init__.py
+file
+
+
+
+
+2009-03-17T13:21:06.000000Z
+d41d8cd98f00b204e9800998ecf8427e
+2006-09-07T15:32:55.822839Z
+369
+giovanni
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+0
+
+old_code_structure
+dir
+
+transport
+dir
+
+transport_hmm
+dir
+
+randomwalk
+dir
+
+chemotaxis
+dir
+
+euler_in_c
+dir
+
+randomwalk_no_contr_var
+dir
+
+lbm_dir
+dir
+
+fisher_pde
+dir
+
+lbm
+dir
+
+diff_hom
+dir
+
+euler
+dir
+

@@ -1,0 +1,35 @@
+/* cumulative.i */
+%module cumulative
+ 
+%{
+#define SWIG_FILE_WITH_INIT
+%}
+%include "numpy.i"
+%init %{
+import_array();
+%}
+
+%inline %{
+#include "cumulative.h"
+%}
+
+%apply (double* IN_ARRAY1, int DIM1) {(double* grid, int ngrid), (double* rho_bucket, int nrho),(double* cum_in, int ncum_in), (double* y, int ny)}
+%apply (double* ARGOUT_ARRAY1, int DIM1) {(double* cum_out, int ncum_out),(double* x, int nx)}
+
+%rename (cumulative) my_cumulative;
+%inline %{
+void my_cumulative(double* grid, int ngrid, double* rho_bucket, int nrho, double* cum_out, int ncum_out) {
+cumulative(grid,rho_bucket,cum_out,ngrid);
+}
+%}
+
+%rename (inverse) my_inverse;
+%inline %{
+void my_inverse(double* y, int ny, double* x, int nx, double* grid, int ngrid,  double* cum_in, int ncum_in) {
+inverse(y,x,nx,grid,cum_in,ngrid);
+}
+%}
+
+%ignore cumulative;
+%ignore inverse;
+%include "cumulative.h"

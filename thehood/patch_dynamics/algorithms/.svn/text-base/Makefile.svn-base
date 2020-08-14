@@ -1,0 +1,21 @@
+# SWIG
+INTERFACES = cumulative.i
+WRAPPERS   = $(INTERFACES:.i=_wrap.c)
+PROXIES    = $(INTERFACES:.i=.py      )
+
+# Default target: build the tests
+.PHONY : all
+all: $(WRAPPERS) cumulative.c
+	./setup.py build
+	cp build/lib.linux-x86_64-2.4/_cumulative.so .
+
+# Rule: %.i -> %_wrap.c
+%_wrap.c: %.i %.c numpy.i
+	swig  -python $<
+
+# Clean target
+.PHONY : clean
+clean:
+	$(RM) -r build
+	$(RM) $(WRAPPERS)
+	$(RM) $(PROXIES)

@@ -1,0 +1,3 @@
+void cumulative(double* grid, double* rho_bucket, double* cum, int ngrid);   
+void inverse(double* y, double* x, int npart, double* grid, double* cum, int ngrid);
+      

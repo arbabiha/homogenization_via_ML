@@ -1,0 +1,109 @@
+import interfaces
+import macro.fv.fv_estimator
+import scipy
+import mpi4py.MPI as MPI
+
+comm= MPI.COMM_WORLD.Dup()
+
+my_rank=comm.Get_rank()
+nprocs=comm.Get_size()
+
+class FVGaptoothEstimator(macro.fv.fv_estimator.FVEstimator):
+    """
+    This class defines everything that is needed to
+    obtain an estimate of the time derivative of
+    the unavailable macroscopic equations.
+    """
+
+    def __init__(self,diff,boxtimestepper,gaptoothStep,maxDeriv):
+        """
+        The constructor takes a coarse timestepper
+        and an order of approximation
+        """
+        self.boxts=boxtimestepper
+        self.delta_t=gaptoothStep
+        macro.fv.fv_estimator.FVEstimator.__init__(self,diff,maxDeriv)
+
+    def getGaptoothStep(self):
+        return self.delta_t
+
+    def getBufferSize(self):
+        return self.boxts.H
+
+    def estimate(self,u,t,x,bc):
+        """
+        the input u and x ar is of size (neq*)(N+nghost)
+        flux 
+        The estimator takes the coarse mesh and coarse variables
+        and produces an estimate of the macroscopic time derivative
+        """
+        neq=self.boxts.neq
+        taylorCoeff,center=self.getReconstruction(x,u,t,bc)
+        edge = 0.5*(center[1:]+center[:-1])
+
+        if bc[0]==interfaces.PERIODIC:
+            per = 1
+        else:
+            per = 0
+        
+        ntotal = len(edge)-per
+    
+        nloc = ntotal/nprocs # integer division
+        remainder = ntotal % nprocs
+        
+        print ntotal
+        print nloc
+        print remainder
+
+        if my_rank < remainder:
+            nlocal=nloc+1
+        else:
+            nlocal=nloc
+            
+        ownership = scipy.zeros((nprocs,),scipy.integer)
+        for i in range(nprocs):
+            ownership[i]=i*nloc+min(remainder,i)
+        
+        my_start = ownership[my_rank] 
+        flux_local=scipy.zeros((neq,nloc+1),\
+            dtype = 'f8', order = 'fortran')
+        H = self.boxts.H
+        dx = self.boxts.delta_x
+        for i in scipy.arange(my_start,my_start+nlocal,1):
+            macro_state=interfaces.State()
+            macro_state.x=edge[i]
+            macro_state.mesh=scipy.arange(\
+                edge[i]-H/2,edge[i]+H/2+dx/2,dx)
+            macro_state.profile=scipy.zeros(\
+                (neq,len(macro_state.mesh)),scipy.float64)
+            for j in range(scipy.shape(taylorCoeff)[0]):
+                # this assumes positive c
+                left=scipy.poly1d(taylorCoeff[j,:,i])\
+                    ((x[i]-center[i])/2)
+                macro_state.profile[j,:]=left
+            macro_state.time=t
+            self.boxts.initialize(macro_state)
+            self.boxts.step(self.delta_t)
+            flux_local[:,i-my_start]=self.boxts.getRestriction()
+        # hier moet iedereen zijn flux_local naar iedereen sturen
+        
+        # fortran ordering is necessary to be able to pass columns
+        flux_global = scipy.zeros((neq,(nloc+1)*nprocs),\
+            dtype='f8', order = 'fortran')
+        comm.Allgather([flux_local,(nloc+1)*neq,MPI.DOUBLE], # send
+            [flux_global,(nloc+1)*neq,MPI.DOUBLE]) # recv 
+        
+        flux=scipy.zeros((neq,scipy.shape(edge)[0]),scipy.float64)
+
+        for i in range(nprocs): 
+            if i < nprocs-1:
+                length = ownership[i+1]-ownership[i]
+            else:
+                length = ntotal - ownership[nprocs-1]
+            flux[:,ownership[i]:ownership[i]+length]=\
+                flux_global[:,i*(nloc+1):i*(nloc+1)+length]
+        
+        if per:
+            flux[:,-1] = flux[:,0]
+        
+        return flux,edge

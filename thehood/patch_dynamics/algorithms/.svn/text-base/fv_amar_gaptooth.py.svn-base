@@ -1,0 +1,75 @@
+import interfaces
+import macro.fv.fv_estimator
+import scipy
+import fv_gaptooth
+
+PATCHES = 0
+MICROSCOPIC = 1
+EFFECTIVE = 2
+
+class FVAmarEstimator(macro.fv.fv_estimator.FVEstimator):
+    """
+    This class defines everything that is needed to
+    obtain an estimate of the time derivative of
+    the unavailable macroscopic equations.
+    If the macroscopic grid is very fine, the microscopic 
+    time derivative is returned directly.
+    """
+
+    def __init__(self,diff,boxtimestepper,gaptoothStep,maxDeriv):
+        """
+        The constructor takes a coarse timestepper
+        and an order of approximation
+        """
+        self.gaptooth = fv_gaptooth.FVGaptoothEstimator(diff,\
+			boxtimestepper,gaptoothStep,maxDeriv) 
+        self.boxts = boxtimestepper
+        self.delta_t = gaptoothStep
+        macro.fv.fv_estimator.FVEstimator.__init__(self,diff,maxDeriv)
+
+    def getGaptoothStep(self):
+        return self.delta_t
+
+    def getBufferSize(self):
+        return self.boxts.H
+    
+    def getFineDx(self):
+        return self.boxts.microsolver.delta_x
+
+    def getChoice(self,dx):
+        # THIS ROUTINE CAN BE MODIFIED (OVERRIDDEN BY SUBCLASS)
+        # TO ALLOW EXTRA CHOICES
+        # NOTE : WE CAN PROVIDE THE CHOICE TO BE AN EFFECTIVE EQUATION AS 
+        # AS WELL... 
+        if scipy.absolute(dx - self.getFineDx()) < 1e-8:
+            return MICROSCOPIC
+        else:
+            return PATCHES
+
+    def estimate(self,u,t,x,bc):
+        """
+        the input u and x ar is of size (neq*)(N+nghost)
+        flux 
+        The estimator takes the coarse mesh and coarse variables
+        and produces an estimate of the macroscopic time derivative
+        """
+        # note: this estimate will only be called when used in an
+        # amr routine (otherwise, it does not make sense)
+        # therefore, all grid routines are available through self.grid
+        # we will need this on the finest grid
+        dx = x[1]-x[0]
+        choice = self.getChoice(dx)
+        if choice == PATCHES:
+            return self.gaptooth.estimate(u,t,x,bc)
+        elif choice == MICROSCOPIC:
+            # the viewpoint is that we cannot chance bc of the microsolver
+            N = int(self.boxts.H/dx)
+            # the buffer coordinates
+            b_l = x[0]+scipy.arange(-N*dx,0,dx)
+            b_r = x[-1]+scipy.arange(dx,N*dx,dx)  
+            # the buffer solutions
+            u_l = self.grid.parent.getSolution(x_l,t)
+            u_r = self.grid.parent.getSolution(x_r,t)
+            xx = scipy.r_[b_l,x,b_r]
+            uu = scipy.c_[u_l,u,u_r]
+            return self.boxts.microsolver.getFlux(uu,xx)[:,N:-N]
